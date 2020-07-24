@@ -135,7 +135,7 @@ func main() {
 	flag.Parse()
 
 	if showversion {
-		fmt.Println(version, build)
+		fmt.Println(version, "-", build)
 		return
 	}
 
