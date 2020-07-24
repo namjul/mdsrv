@@ -246,7 +246,7 @@ func main() {
 	log.Println("INFO  ", "serving markdown documents in", dir, "on", addr)
 
 	if assets != "" {
-		log.Println("INFO  ", "serving assets from", dir)
+		log.Println("INFO  ", "serving assets from", assets)
 	}
 
 	c := make(chan os.Signal, 1)
