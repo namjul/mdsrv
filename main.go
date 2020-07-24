@@ -38,19 +38,35 @@ func text(w http.ResponseWriter, content string, status int) {
 	w.Write([]byte(content))
 }
 
+func resolvePath(dir, path string) (string, error) {
+	realpath := filepath.Join(dir, path)
+
+	info, err := os.Stat(realpath)
+
+	if err != nil {
+		if os.IsNotExist(err) {
+			if !strings.HasSuffix(path, ".md") {
+				return realpath + ".md", nil
+			}
+		}
+		return "", nil
+	}
+
+	if info.IsDir() {
+		return filepath.Join(realpath, "readme.md"), nil
+	}
+	return realpath, nil
+}
+
 func documentHandler(log *log.Logger, dir string, t *template.Template) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = strings.Replace(r.URL.Path, "..", "", -1)
 
 		if r.URL.Path == "/" {
-			r.URL.Path = "readme"
+			r.URL.Path = "readme.md"
 		}
 
-		if !strings.HasSuffix(r.URL.Path, ".md") {
-			r.URL.Path += ".md"
-		}
-
-		info, err := os.Stat(filepath.Join(dir, r.URL.Path))
+		realpath, err := resolvePath(dir, r.URL.Path)
 
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -62,11 +78,7 @@ func documentHandler(log *log.Logger, dir string, t *template.Template) http.Han
 			return
 		}
 
-		if info.IsDir() {
-			r.URL.Path = r.URL.Path + "/readme.md"
-		}
-
-		b, err := ioutil.ReadFile(filepath.Join(dir, r.URL.Path))
+		b, err := ioutil.ReadFile(realpath)
 
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -87,7 +99,7 @@ func documentHandler(log *log.Logger, dir string, t *template.Template) http.Han
 
 		md := blackfriday.Run(b, blackfriday.WithExtensions(blackfriday.CommonExtensions))
 
-		name := strings.TrimSuffix(info.Name(), ".md")
+		name := strings.TrimSuffix(filepath.Base(realpath), ".md")
 		title := strings.Title(strings.Replace(name, "-", " ", -1))
 
 		data := struct {
