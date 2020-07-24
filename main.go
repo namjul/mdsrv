@@ -224,7 +224,6 @@ func main() {
 		mux.Handle("/assets/", http.StripPrefix("/assets", http.FileServer(http.Dir(assets))))
 	}
 
-
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      mux,
