@@ -39,6 +39,12 @@ func text(w http.ResponseWriter, content string, status int) {
 }
 
 func resolvePath(dir, path string) (string, error) {
+	path = strings.Replace(path, "..", "", -1)
+
+	if path == "/" {
+		path = "readme.md"
+	}
+
 	realpath := filepath.Join(dir, path)
 
 	info, err := os.Stat(realpath)
@@ -48,6 +54,7 @@ func resolvePath(dir, path string) (string, error) {
 			if !strings.HasSuffix(path, ".md") {
 				return realpath + ".md", nil
 			}
+			return path, nil
 		}
 		return "", nil
 	}
@@ -55,17 +62,15 @@ func resolvePath(dir, path string) (string, error) {
 	if info.IsDir() {
 		return filepath.Join(realpath, "readme.md"), nil
 	}
+
+	if !strings.HasSuffix(path, ".md") {
+		return realpath + ".md", nil
+	}
 	return realpath, nil
 }
 
 func documentHandler(log *log.Logger, dir string, t *template.Template) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = strings.Replace(r.URL.Path, "..", "", -1)
-
-		if r.URL.Path == "/" {
-			r.URL.Path = "readme.md"
-		}
-
 		realpath, err := resolvePath(dir, r.URL.Path)
 
 		if err != nil {
