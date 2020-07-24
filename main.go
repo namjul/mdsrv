@@ -16,7 +16,9 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/russross/blackfriday"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
 )
 
 var (
@@ -69,7 +71,7 @@ func resolvePath(dir, path string) (string, error) {
 	return realpath, nil
 }
 
-func documentHandler(log *log.Logger, dir string, t *template.Template) http.Handler {
+func documentHandler(log *log.Logger, dir string, t *template.Template) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		realpath, err := resolvePath(dir, r.URL.Path)
 
@@ -100,22 +102,35 @@ func documentHandler(log *log.Logger, dir string, t *template.Template) http.Han
 			return
 		}
 
-		buf := &bytes.Buffer{}
+		md := goldmark.New(
+			goldmark.WithExtensions(extension.GFM),
+			goldmark.WithParserOptions(parser.WithAutoHeadingID()),
+		)
 
-		md := blackfriday.Run(b, blackfriday.WithExtensions(blackfriday.CommonExtensions))
+		mdBuf := bytes.Buffer{}
+
+		if err := md.Convert(b, &mdBuf); err != nil {
+			log.Println("ERROR", err)
+			text(w, "Something went wrong", http.StatusInternalServerError)
+			return
+		}
 
 		name := strings.TrimSuffix(filepath.Base(realpath), ".md")
 		title := strings.Title(strings.Replace(name, "-", " ", -1))
 
 		data := struct {
 			Title    string
+			Path     string
 			Document string
 		}{
 			Title:    title,
-			Document: string(md),
+			Path:     r.URL.Path,
+			Document: mdBuf.String(),
 		}
 
-		if err := t.Execute(buf, data); err != nil {
+		buf := bytes.Buffer{}
+
+		if err := t.Execute(&buf, data); err != nil {
 			log.Println("ERROR", err)
 			text(w, "Something went wrong", http.StatusInternalServerError)
 			return
@@ -134,6 +149,7 @@ func serve(srv *http.Server, cert, key string) error {
 func main() {
 	var (
 		addr        string
+		assets      string
 		dir         string
 		tmpl        string
 		cert        string
@@ -143,6 +159,7 @@ func main() {
 	)
 
 	flag.StringVar(&addr, "addr", ":8080", "the address to serve on")
+	flag.StringVar(&assets, "assets", "", "the directory of assets to serve")
 	flag.StringVar(&dir, "dir", ".", "the directory to serve")
 	flag.StringVar(&tmpl, "tmpl", "", "the template file for the documents")
 	flag.StringVar(&cert, "cert", "", "the server certificate to use for TLS")
@@ -200,9 +217,17 @@ func main() {
 		}
 	}
 
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", documentHandler(log, dir, t))
+
+	if assets != "" {
+		mux.Handle("/assets/", http.StripPrefix("/assets", http.FileServer(http.Dir(assets))))
+	}
+
+
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      documentHandler(log, dir, t),
+		Handler:      mux,
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
@@ -219,6 +244,10 @@ func main() {
 	defer cancel()
 
 	log.Println("INFO  ", "serving markdown documents in", dir, "on", addr)
+
+	if assets != "" {
+		log.Println("INFO  ", "serving assets from", dir)
+	}
 
 	c := make(chan os.Signal, 1)
 
