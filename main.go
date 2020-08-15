@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -231,6 +232,26 @@ func main() {
 		ReadTimeout:  15 * time.Second,
 	}
 
+	scheme := "http://"
+
+	if cert != "" && key != "" {
+		scheme = "https://"
+	}
+
+	host, port, err := net.SplitHostPort(addr)
+
+	if err != nil {
+		log.Fatalf("invalid address: %s\n", err)
+	}
+
+	if host == "" {
+		host, err = os.Hostname()
+
+		if err != nil {
+			host = "localhost"
+		}
+	}
+
 	go func() {
 		if err := serve(srv, cert, key); err != nil {
 			if err != http.ErrServerClosed {
@@ -247,6 +268,8 @@ func main() {
 	if assets != "" {
 		log.Println("INFO  ", "serving assets from", assets)
 	}
+
+	log.Println("INFO  ", "mdsrv docs at:", scheme + host + ":" + port)
 
 	c := make(chan os.Signal, 1)
 
