@@ -23,7 +23,10 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-var version string
+var (
+	version string
+	build   string
+)
 
 func serveHTML(w http.ResponseWriter, content string, status int) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -170,7 +173,7 @@ func main() {
 	flag.Parse()
 
 	if showversion {
-		fmt.Println(os.Args[0], version)
+		fmt.Println(os.Args[0], version, build)
 		return
 	}
 

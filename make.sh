@@ -2,14 +2,11 @@
 
 set -e
 
-version="$(git rev-parse --abbrev-ref HEAD)"
-
-if ! echo "$version" | grep -qE "^v"; then
-	version="devel $(git log -n 1 --format='format: +%h %cd' HEAD)"
-fi
+version="$(git describe --tags)"
+build="$(git log -n 1 --format='format: +%h %cd' HEAD)"
 
 tags="netgo"
-ldflags=$(printf -- "-X 'main.version=%s'" "$module" "$version")
+ldflags=$(printf -- "-X 'main.version=%s' -X 'main.build=%s'" "$version" "$build")
 
 [ ! -d bin ] && mkdir bin
 
