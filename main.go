@@ -20,14 +20,12 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
 )
 
-var (
-	version string
-	build   string
-)
+var version string
 
-func html(w http.ResponseWriter, content string, status int) {
+func serveHTML(w http.ResponseWriter, content string, status int) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
 	w.WriteHeader(status)
@@ -108,6 +106,8 @@ func documentHandler(log *log.Logger, dir string, t *template.Template) http.Han
 			goldmark.WithParserOptions(parser.WithAutoHeadingID()),
 		)
 
+		md.Renderer().AddOptions(html.WithUnsafe())
+
 		mdBuf := bytes.Buffer{}
 
 		if err := md.Convert(b, &mdBuf); err != nil {
@@ -136,7 +136,7 @@ func documentHandler(log *log.Logger, dir string, t *template.Template) http.Han
 			text(w, "Something went wrong", http.StatusInternalServerError)
 			return
 		}
-		html(w, buf.String(), http.StatusOK)
+		serveHTML(w, buf.String(), http.StatusOK)
 	})
 }
 
@@ -170,7 +170,7 @@ func main() {
 	flag.Parse()
 
 	if showversion {
-		fmt.Println(os.Args[0], version, "-", build)
+		fmt.Println(os.Args[0], version)
 		return
 	}
 
