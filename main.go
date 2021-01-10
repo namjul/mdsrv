@@ -141,8 +141,6 @@ func documentHandler(log *log.Logger, dir string, vars varset, t *template.Templ
 
 		b, err := parseRawMarkdown(realpath, vars)
 
-//		b, err := ioutil.ReadFile(realpath)
-
 		if err != nil {
 			if os.IsNotExist(err) {
 				text(w, "Not Found", http.StatusNotFound)
@@ -180,10 +178,12 @@ func documentHandler(log *log.Logger, dir string, vars varset, t *template.Templ
 			Title    string
 			Path     string
 			Document string
+			Vars     varset
 		}{
 			Title:    title,
 			Path:     r.URL.Path,
 			Document: mdbuf.String(),
+			Vars:     vars,
 		}
 
 		var buf bytes.Buffer
