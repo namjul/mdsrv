@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -23,10 +24,32 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
+type varset map[string]string
+
 var (
 	version string
 	build   string
 )
+
+func (v *varset) String() string { return "" }
+
+func (v *varset) Set(s string) error {
+	parts := strings.SplitN(s, "=", 2)
+
+	if len(parts) < 2 {
+		return errors.New("invalid variable, must be key=value")
+	}
+
+	if (*v) == nil {
+		(*v) = make(map[string]string)
+	}
+
+	key := parts[0]
+	val := parts[1]
+
+	(*v)[key] = val
+	return nil
+}
 
 func serveHTML(w http.ResponseWriter, content string, status int) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -73,7 +96,36 @@ func resolvePath(dir, path string) (string, error) {
 	return realpath, nil
 }
 
-func documentHandler(log *log.Logger, dir string, t *template.Template) http.HandlerFunc {
+func parseRawMarkdown(path string, vars varset) ([]byte, error) {
+	b, err := ioutil.ReadFile(path)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(vars) == 0 {
+		return b, nil
+	}
+
+	tmpl, err := template.New(path).Parse(string(b))
+
+	if err != nil {
+		return nil, err
+	}
+
+	var data = struct {
+		Vars varset
+	}{Vars: vars}
+
+	var buf bytes.Buffer
+
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func documentHandler(log *log.Logger, dir string, vars varset, t *template.Template) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		realpath, err := resolvePath(dir, r.URL.Path)
 
@@ -87,7 +139,9 @@ func documentHandler(log *log.Logger, dir string, t *template.Template) http.Han
 			return
 		}
 
-		b, err := ioutil.ReadFile(realpath)
+		b, err := parseRawMarkdown(realpath, vars)
+
+//		b, err := ioutil.ReadFile(realpath)
 
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -111,9 +165,9 @@ func documentHandler(log *log.Logger, dir string, t *template.Template) http.Han
 
 		md.Renderer().AddOptions(html.WithUnsafe())
 
-		mdBuf := bytes.Buffer{}
+		var mdbuf bytes.Buffer
 
-		if err := md.Convert(b, &mdBuf); err != nil {
+		if err := md.Convert(b, &mdbuf); err != nil {
 			log.Println("ERROR", err)
 			text(w, "Something went wrong", http.StatusInternalServerError)
 			return
@@ -129,10 +183,10 @@ func documentHandler(log *log.Logger, dir string, t *template.Template) http.Han
 		}{
 			Title:    title,
 			Path:     r.URL.Path,
-			Document: mdBuf.String(),
+			Document: mdbuf.String(),
 		}
 
-		buf := bytes.Buffer{}
+		var buf bytes.Buffer
 
 		if err := t.Execute(&buf, data); err != nil {
 			log.Println("ERROR", err)
@@ -159,6 +213,7 @@ func main() {
 		cert        string
 		key         string
 		logname     string
+		vars        varset
 		showversion bool
 	)
 
@@ -169,6 +224,7 @@ func main() {
 	flag.StringVar(&cert, "cert", "", "the server certificate to use for TLS")
 	flag.StringVar(&key, "key", "", "the server key to use for TLS")
 	flag.StringVar(&logname, "log", "/dev/stdout", "the file to log errors to")
+	flag.Var(&vars, "var","set a variable to use in the markdown documents")
 	flag.BoolVar(&showversion, "version", false, "show the version")
 	flag.Parse()
 
@@ -222,7 +278,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", documentHandler(log, dir, t))
+	mux.HandleFunc("/", documentHandler(log, dir, vars, t))
 
 	if assets != "" {
 		mux.Handle("/assets/", http.StripPrefix("/assets", http.FileServer(http.Dir(assets))))

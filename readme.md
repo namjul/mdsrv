@@ -7,6 +7,7 @@ filesystem.
 * [Quickstart](#quickstart)
 * [Serving Markdown](#serving-markdown)
 * [Template File](#template-file)
+* [Markdown Variables](#markdown-variables)
 * [Enabling TLS](#enabling-tls)
 
 ## Quickstart
@@ -65,6 +66,17 @@ template page for each Markdown file to be rendered into,
         </head>
         <body>{{ .Document }}</body>
     </html>
+
+## Markdown Variables
+
+Variables can be passed through to the server Markdown documents via the `-var`
+flag. For example,
+
+    $ mdsrv -var host=https://example.com
+
+this variable can then be accessed from within a Markdown document like so,
+
+    Host is {{index .Vars "host"}}
 
 ## Enabling TLS
 
