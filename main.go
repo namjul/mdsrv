@@ -22,9 +22,19 @@ import (
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
+  "go.abhg.dev/goldmark/wikilink"
+
 )
 
 type varset map[string]string
+
+// Define a simple resolver
+type simpleResolver struct{}
+
+func (r *simpleResolver) ResolveWikilink(node *wikilink.Node) (destination []byte, err error) {
+	// Return the link target without adding ".html"
+	return node.Target, nil
+}
 
 var (
 	version string
@@ -157,7 +167,9 @@ func documentHandler(log *log.Logger, dir string, vars varset, t *template.Templ
 		}
 
 		md := goldmark.New(
-			goldmark.WithExtensions(extension.GFM),
+			goldmark.WithExtensions(extension.GFM, &wikilink.Extender{
+			  Resolver: &simpleResolver{},
+			}),
 			goldmark.WithParserOptions(parser.WithAutoHeadingID()),
 		)
 
